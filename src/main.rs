@@ -1,8 +1,4 @@
-use nostr_bot::{
-    network::Network,
-    nostr::{format_reply, Event, EventNonSigned},
-    wrap, State,
-};
+use nostr_bot::{format_reply, wrap, Command, Event, EventNonSigned, FunctorType, Network, State};
 
 use std::time::SystemTime;
 
@@ -13,27 +9,38 @@ struct Info {
 
 async fn joke(event: Event, state: State<Info>) -> EventNonSigned {
     println!("Sending request to jokeapi.dev");
-    let text = match reqwest::get("https://v2.jokeapi.dev/joke/Any?format=txt").await {
-        Ok(response) => match response.text().await {
-            Ok(text) => {
-                state.lock().unwrap().jokes_told += 1;
-                text
+
+    let error_text = String::from("I'm unable to connect to jokeapi.dev. No jokes, I'm serious.");
+
+    let conn = reqwest::get("https://v2.jokeapi.dev/joke/Any?format=txt").await;
+
+    let text = match conn {
+        Ok(response) => {
+            if response.status().is_success() {
+                match response.text().await {
+                    Ok(text) => {
+                        state.lock().await.jokes_told += 1;
+                        text
+                    }
+                    Err(_) => error_text,
+                }
+            } else {
+                error_text
             }
-            Err(e) => format!("{}", e),
-        },
-        Err(e) => format!("{}", e),
+        }
+        Err(_) => error_text,
     };
 
-    nostr_bot::nostr::format_reply(event, escape(text))
+    format_reply(event, text)
 }
 
 async fn stats(event: Event, state: State<Info>) -> EventNonSigned {
-    let state = state.lock().unwrap();
+    let state = state.lock().await;
     let uptime_seconds = SystemTime::now()
         .duration_since(state.started_at)
         .unwrap()
         .as_secs();
-    nostr_bot::nostr::format_reply(
+    format_reply(
         event,
         format!(
             "I'm up {} and I told {} jokes since my last crash.",
@@ -61,16 +68,16 @@ async fn main() {
 
     let pic_url = "https://media.istockphoto.com/vectors/yellow-emoticons-and-emojis-vector-id1179177852?k=20&m=1179177852&s=612x612&w=0&h=5UrMXuV5x2WCI-d8twGI9gPZ6810wpgqyF9oy7X-r9M=";
 
-    let mut bot =
-        nostr_bot::Bot::<State<Info>>::new(keypair, relays, nostr_bot::network::Network::Clearnet)
-            .set_name("joke_bot")
-            .set_about(
-                "Just joking around. Blame https://sv443.net/jokeapi/v2/ if you don't like a joke.",
-            )
-            .set_picture(pic_url)
-            .set_intro_message("Wasup, I'm a joke bot. Reply to me with !joke or !stats.")
-            .add_command("!joke", nostr_bot::wrap!(joke))
-            .add_command("!stats", nostr_bot::wrap!(stats));
+    let mut bot = nostr_bot::Bot::<State<Info>>::new(keypair, relays, Network::Clearnet)
+        .set_name("joke_bot")
+        .set_about(
+            "Just joking around. Blame https://sv443.net/jokeapi/v2/ if you don't like a joke.",
+        )
+        .set_picture(pic_url)
+        .set_intro_message("Wasup, I'm a joke bot. Reply to me with !help.")
+        .command(Command::new("!joke", nostr_bot::wrap!(joke)).desc("Tell a random joke."))
+        .command(Command::new("!stats", nostr_bot::wrap!(stats)).desc("Show for how long I'm running and how many jokes I told."))
+        .help();
 
     let state = nostr_bot::wrap_state(Info {
         started_at: SystemTime::now(),
@@ -78,20 +85,4 @@ async fn main() {
     });
 
     bot.run(state).await;
-}
-
-// TODO: Add other characters and move into the lib
-fn escape(text: String) -> String {
-    let mut escaped = String::new();
-
-    for c in text.chars() {
-        let seq = match c {
-            '"' => r#"\""#.to_string(),
-            '\n' => r#"\n"#.to_string(),
-            _ => c.to_string(),
-        };
-
-        escaped.push_str(seq.as_str());
-    }
-    escaped
 }
