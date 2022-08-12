@@ -7,16 +7,32 @@ struct Info {
     jokes_told: u64,
 }
 
-async fn fetch_joke() -> Result<String, reqwest::Error> {
-    let response = reqwest::get("https://v2.jokeapi.dev/joke/Any?format=txt").await?;
+async fn fetch_joke(category: &str) -> Result<String, reqwest::Error> {
+    let url = format!("https://v2.jokeapi.dev/joke/{}?format=txt", category);
+    let response = reqwest::get(url).await?;
 
     Ok(response.text().await?)
 }
 
-async fn joke(event: Event, state: State<Info>) -> EventNonSigned {
-    println!("Sending request to jokeapi.dev");
+async fn joke(event: Event, _state: State<Info>) -> EventNonSigned {
+    let args = event.content.split_whitespace().collect::<Vec<_>>();
+    let category = if args.len() > 1 {
+        match args[1] {
+            "any" | "programming" | "misc" | "dark" | "pun" | "spooky" | "christmas" => args[1],
+            _ => {
+                return get_reply(
+                    event,
+                    String::from(
+                        "Unknown category, run !help command to see available categories.",
+                    ),
+                )
+            }
+        }
+    } else {
+        "any"
+    };
 
-    let response = match fetch_joke().await {
+    let response = match fetch_joke(category).await {
         Ok(joke_text) => joke_text,
         Err(e) => format!("I was unable to get the joke: {}", e),
     };
@@ -67,7 +83,7 @@ async fn main() {
         .about("Just joking around. Blame https://sv443.net/jokeapi/v2/ if you don't like a joke.")
         .picture(pic_url)
         .intro_message("Wasup, I'm a joke bot. Reply to me with !help.")
-        .command(Command::new("!joke", nostr_bot::wrap!(joke)).description("Tell a random joke."))
+        .command(Command::new("!joke", nostr_bot::wrap!(joke)).description("Tell a random joke. Category can be specified: any, programming, misc, dark, pun, spooky, christmas"))
         .command(
             Command::new("!stats", nostr_bot::wrap!(stats))
                 .description("Show for how long I'm running and how many jokes I told."),
