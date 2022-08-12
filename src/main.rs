@@ -1,4 +1,4 @@
-use nostr_bot::{format_reply, wrap, Command, Event, EventNonSigned, FunctorType, Network, State};
+use nostr_bot::{get_reply, Command, Event, EventNonSigned, FunctorType, State};
 
 use std::time::SystemTime;
 
@@ -7,31 +7,21 @@ struct Info {
     jokes_told: u64,
 }
 
+async fn fetch_joke() -> Result<String, reqwest::Error> {
+    let response = reqwest::get("https://v2.jokeapi.dev/joke/Any?format=txt").await?;
+
+    Ok(response.text().await?)
+}
+
 async fn joke(event: Event, state: State<Info>) -> EventNonSigned {
     println!("Sending request to jokeapi.dev");
 
-    let error_text = String::from("I'm unable to connect to jokeapi.dev. No jokes, I'm serious.");
-
-    let conn = reqwest::get("https://v2.jokeapi.dev/joke/Any?format=txt").await;
-
-    let text = match conn {
-        Ok(response) => {
-            if response.status().is_success() {
-                match response.text().await {
-                    Ok(text) => {
-                        state.lock().await.jokes_told += 1;
-                        text
-                    }
-                    Err(_) => error_text,
-                }
-            } else {
-                error_text
-            }
-        }
-        Err(_) => error_text,
+    let response = match fetch_joke().await {
+        Ok(joke_text) => joke_text,
+        Err(e) => format!("I was unable to get the joke: {}", e),
     };
 
-    format_reply(event, text)
+    get_reply(event, response)
 }
 
 async fn stats(event: Event, state: State<Info>) -> EventNonSigned {
@@ -40,7 +30,7 @@ async fn stats(event: Event, state: State<Info>) -> EventNonSigned {
         .duration_since(state.started_at)
         .unwrap()
         .as_secs();
-    format_reply(
+    get_reply(
         event,
         format!(
             "I'm up {} and I told {} jokes since my last crash.",
@@ -55,34 +45,34 @@ async fn main() {
     nostr_bot::init_logger();
 
     let relays = vec![
-        String::from("wss://nostr-pub.wellorder.net"),
-        String::from("wss://relay.damus.io"),
-        String::from("wss://relay.nostr.info"),
+        "wss://nostr-pub.wellorder.net",
+        "wss://relay.damus.io",
+        "wss://relay.nostr.info",
     ];
 
     let mut secret = std::fs::read_to_string("secret").unwrap();
     secret.pop(); // Remove newline
 
-    let secp = secp256k1::Secp256k1::new();
-    let keypair = secp256k1::KeyPair::from_seckey_str(&secp, &secret).unwrap();
+    let keypair = nostr_bot::keypair_from_secret(&secret);
 
     let pic_url = "https://media.istockphoto.com/vectors/yellow-emoticons-and-emojis-vector-id1179177852?k=20&m=1179177852&s=612x612&w=0&h=5UrMXuV5x2WCI-d8twGI9gPZ6810wpgqyF9oy7X-r9M=";
-
-    let mut bot = nostr_bot::Bot::<State<Info>>::new(keypair, relays, Network::Clearnet)
-        .set_name("joke_bot")
-        .set_about(
-            "Just joking around. Blame https://sv443.net/jokeapi/v2/ if you don't like a joke.",
-        )
-        .set_picture(pic_url)
-        .set_intro_message("Wasup, I'm a joke bot. Reply to me with !help.")
-        .command(Command::new("!joke", nostr_bot::wrap!(joke)).desc("Tell a random joke."))
-        .command(Command::new("!stats", nostr_bot::wrap!(stats)).desc("Show for how long I'm running and how many jokes I told."))
-        .help();
 
     let state = nostr_bot::wrap_state(Info {
         started_at: SystemTime::now(),
         jokes_told: 0,
     });
 
-    bot.run(state).await;
+    let mut bot = nostr_bot::Bot::<State<Info>>::new(keypair, relays, state)
+        .name("joke_bot")
+        .about("Just joking around. Blame https://sv443.net/jokeapi/v2/ if you don't like a joke.")
+        .picture(pic_url)
+        .intro_message("Wasup, I'm a joke bot. Reply to me with !help.")
+        .command(Command::new("!joke", nostr_bot::wrap!(joke)).description("Tell a random joke."))
+        .command(
+            Command::new("!stats", nostr_bot::wrap!(stats))
+                .description("Show for how long I'm running and how many jokes I told."),
+        )
+        .help();
+
+    bot.run().await;
 }

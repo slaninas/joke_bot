@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 compound_duration = "1.2.0"
-nostr-bot = { git = "https://github.com/slaninas/nostr-bot" }
+nostr-bot = "0.1"
 reqwest = "0.11.11"
-secp256k1 = {version = "0.23.3", features = ["rand", "rand-std", "bitcoin_hashes"]}
 tokio = "1.20.1"

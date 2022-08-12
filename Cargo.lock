@@ -438,7 +438,6 @@ dependencies = [
  "compound_duration",
  "nostr-bot",
  "reqwest",
- "secp256k1",
  "tokio",
 ]
 
@@ -529,7 +528,8 @@ dependencies = [
 [[package]]
 name = "nostr-bot"
 version = "0.1.0"
-source = "git+https://github.com/slaninas/nostr-bot#6f96843d8b77473665abe230f5ff948200ce7b62"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b71025dc35233ccba34327f4c162774740b1ffe36cdc50699a361b78d3bbbbf"
 dependencies = [
  "env_logger",
  "futures-util",
