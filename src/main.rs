@@ -14,7 +14,7 @@ async fn fetch_joke(category: &str) -> Result<String, reqwest::Error> {
     Ok(response.text().await?)
 }
 
-async fn joke(event: Event, _state: State<Info>) -> EventNonSigned {
+async fn joke(event: Event, state: State<Info>) -> EventNonSigned {
     let args = event.content.split_whitespace().collect::<Vec<_>>();
     let category = if args.len() > 1 {
         match args[1] {
@@ -33,7 +33,10 @@ async fn joke(event: Event, _state: State<Info>) -> EventNonSigned {
     };
 
     let response = match fetch_joke(category).await {
-        Ok(joke_text) => joke_text,
+        Ok(joke_text) => {
+            state.lock().await.jokes_told += 1;
+            joke_text
+        }
         Err(e) => format!("I was unable to get the joke: {}", e),
     };
 
