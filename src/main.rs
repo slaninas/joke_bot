@@ -11,7 +11,7 @@ async fn fetch_joke(category: &str) -> Result<String, reqwest::Error> {
     let url = format!("https://v2.jokeapi.dev/joke/{}?format=txt", category);
     let response = reqwest::get(url).await?;
 
-    Ok(response.text().await?)
+    response.text().await
 }
 
 async fn joke(event: Event, state: State<Info>) -> EventNonSigned {
