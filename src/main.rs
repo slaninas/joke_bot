@@ -59,6 +59,13 @@ async fn stats(event: Event, state: State<Info>) -> EventNonSigned {
     )
 }
 
+async fn code(event: Event, _state: State<Info>) -> EventNonSigned {
+    get_reply(
+        event,
+        String::from("You can see the source code at https://github.com/slaninas/joke_bot."),
+    )
+}
+
 #[tokio::main]
 async fn main() {
     nostr_bot::init_logger();
@@ -86,11 +93,12 @@ async fn main() {
         .about("Just joking around. Blame https://sv443.net/jokeapi/v2/ if you don't like a joke.")
         .picture(pic_url)
         .intro_message("Wasup, I'm a joke bot. Reply to me with !help.")
-        .command(Command::new("!joke", nostr_bot::wrap!(joke)).description("Tell a random joke. Category can be specified: any, programming, misc, dark, pun, spooky, christmas"))
+        .command(Command::new("!joke", nostr_bot::wrap!(joke)).description("Tells a random joke. Category can be specified: any, programming, misc, dark, pun, spooky, christmas"))
         .command(
             Command::new("!stats", nostr_bot::wrap!(stats))
-                .description("Show for how long I'm running and how many jokes I told."),
+                .description("Shows for how long I'm running and how many jokes I told."),
         )
+        .command(Command::new("!code", nostr_bot::wrap!(code)).description("Gives link to bot's source code."))
         .help();
 
     bot.run().await;
